@@ -33,6 +33,14 @@ class SeApplicationTests {
 	void contextLoads() {
 	}
 
+	private SEBalance createPassiveAccount(final String cust, final String acct, final String balTp, final String instr, Integer inAmt) {
+		final SEBalance balance = balanceRepository.find(BalanceRepository.BalanceKey.of("BD", "CL001A02", "AVAI", "USD"));
+		balance.activity = 'P';
+		balance.inAmt = balance.cdtAmt = BigDecimal.valueOf(inAmt);
+
+		return balance;
+	}
+
 	@Test
 	void settleActiveAccount() {
 		SETrans trans = new SETrans();
@@ -59,16 +67,12 @@ class SeApplicationTests {
 
 		final List<SENetto> lNetto = setlEngine.createNetto(trans, Arrays.asList(entry));
 
-		setlEngine.execute(trans, lNetto);
-
-		assertEquals("F", trans.state);
+		assertEquals(SetlEngine.TransStatus.SETL, setlEngine.execute(trans, lNetto));
 	}
 
 	@Test
 	void settlePassiveAccount() {
-		final SEBalance balC1A2 = balanceRepository.find(BalanceRepository.BalanceKey.of("BD", "CL001A02", "AVAI", "USD"));
-		balC1A2.activity = 'P';
-		balC1A2.inAmt = balC1A2.cdtAmt = BigDecimal.valueOf(7);
+		final SEBalance balC1A2 = createPassiveAccount("BD", "CL001A02", "AVAI", "USD", 7);
 
 		SETrans trans10 = new SETrans();
 		trans10.id = sequenceRepository.getTransId();
@@ -76,7 +80,7 @@ class SeApplicationTests {
 		trans10.priority = 100;
 		trans10.sttlmDt = LocalDate.now().atStartOfDay();
 		trans10.state = "N";
-		trans10.isQueueable = 'Y';
+		trans10.isQueueable = 'N';
 
 		SEEntry entry10 = new SEEntry();
 		entry10.id = sequenceRepository.getEntryId();
@@ -84,7 +88,7 @@ class SeApplicationTests {
 		entry10.trans = trans10;
 		entry10.docId = trans10.docId;
 		entry10.dbtrAcctCust = "BD";
-		entry10.dbtrAcct = "CL001A02";
+		entry10.dbtrAcct = balC1A2.acct;
 		entry10.dbtrBalTp = "AVAI";
 		entry10.cdtrAcctCust = "BD";
 		entry10.cdtrAcct = "CL002A01";
@@ -94,9 +98,7 @@ class SeApplicationTests {
 
 		final List<SENetto> lNetto10 = setlEngine.createNetto(trans10, Arrays.asList(entry10));
 
-		setlEngine.execute(trans10, lNetto10);
-
-		assertEquals("X", trans10.state);
+		assertEquals(SetlEngine.TransStatus.REJT, setlEngine.execute(trans10, lNetto10));
 
 
 		SETrans trans5 = new SETrans();
@@ -123,8 +125,65 @@ class SeApplicationTests {
 
 		final List<SENetto> lNetto5 = setlEngine.createNetto(trans5, Arrays.asList(entry5));
 
-		setlEngine.execute(trans5, lNetto5);
+		assertEquals(SetlEngine.TransStatus.SETL, setlEngine.execute(trans5, lNetto5));
+	}
 
-		assertEquals("F", trans5.state);
+	@Test
+	void settlePassiveAccount2() {
+		final SEBalance balC1A3 = createPassiveAccount("BD", "CL001A02", "AVAI", "USD", 10);
+
+		SETrans trans10 = new SETrans();
+		trans10.id = sequenceRepository.getTransId();
+		trans10.docId = sequenceRepository.getDocId();
+		trans10.priority = 100;
+		trans10.sttlmDt = LocalDate.now().atStartOfDay();
+		trans10.state = "N";
+		trans10.isQueueable = 'Y';
+
+		SEEntry entry10 = new SEEntry();
+		entry10.id = sequenceRepository.getEntryId();
+		entry10.transId = trans10.id;
+		entry10.trans = trans10;
+		entry10.docId = trans10.docId;
+		entry10.dbtrAcctCust = "BD";
+		entry10.dbtrAcct = "CL001A03";
+		entry10.dbtrBalTp = "AVAI";
+		entry10.cdtrAcctCust = "BD";
+		entry10.cdtrAcct = "CL002A01";
+		entry10.cdtrBalTp = "AVAI";
+		entry10.instr = "USD";
+		entry10.amount = BigDecimal.TEN;
+
+		final List<SENetto> lNetto10 = setlEngine.createNetto(trans10, Arrays.asList(entry10));
+
+		assertEquals(SetlEngine.TransStatus.QUED, setlEngine.execute(trans10, lNetto10));
+
+
+		SETrans trans5 = new SETrans();
+		trans5.id = sequenceRepository.getTransId();
+		trans5.docId = sequenceRepository.getDocId();
+		trans5.priority = 100;
+		trans5.sttlmDt = LocalDate.now().atStartOfDay();
+		trans5.state = "N";
+		trans5.isQueueable = 'Y';
+
+		SEEntry entry5 = new SEEntry();
+		entry5.id = sequenceRepository.getEntryId();
+		entry5.transId = trans5.id;
+		entry5.trans = trans5;
+		entry5.docId = trans5.docId;
+		entry5.dbtrAcctCust = "BD";
+		entry5.dbtrAcct = "CL001A02";
+		entry5.dbtrBalTp = "AVAI";
+		entry5.cdtrAcctCust = "BD";
+		entry5.cdtrAcct = "CL002A01";
+		entry5.cdtrBalTp = "AVAI";
+		entry5.instr = "USD";
+		entry5.amount = BigDecimal.valueOf(5);
+
+		final List<SENetto> lNetto5 = setlEngine.createNetto(trans5, Arrays.asList(entry5));
+
+// !!!!!!!!  should be QUED
+		assertEquals(SetlEngine.TransStatus.SETL, setlEngine.execute(trans5, lNetto5));
 	}
 }

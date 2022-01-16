@@ -13,17 +13,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class SetlEngine {
-	public SetlEngine(BalanceRepository balanceRepository, SequenceRepository sequenceRepository, SEParams seParams) {
+	public SetlEngine(BalanceRepository balanceRepository, SequenceRepository sequenceRepository,
+	                  SetlEngineCore setlEngineCore, SEParams seParams) {
 		this.balanceRepository = balanceRepository;
 		this.sequenceRepository = sequenceRepository;
+		this.setlEngineCore = setlEngineCore;
 		this.seParams = seParams;
 	}
 
 	private final BalanceRepository balanceRepository;
 	private final SequenceRepository sequenceRepository;
+	private final SetlEngineCore setlEngineCore;
 	private final SEParams seParams;
+
+	public enum TransStatus {SETL, REJT, QUED}
 
 	public List<SENetto> createNetto(final SETrans trans, final List<SEEntry> lEntry) {
 		Map<BalanceRepository.BalanceKey, SENetto> map = new HashMap<>();
@@ -81,94 +87,14 @@ public class SetlEngine {
 	}
 
 	// TODO async execution
-	public boolean execute(SETrans trans, List<SENetto> lNetto) {
-		List<SENetto> lNettoFail = executeNettoDebit(lNetto);
-
-		if (lNettoFail != null) {
-			trans.state = "X";
-			return false;
-		}
-
-		trans.state = "F";
-		return false;
-	}
-
-	private List<SENetto> executeNettoDebit(List<SENetto> lNetto) {
-		List<SENetto> lNettoFail = null;
-		int i = 0;
-
+	public TransStatus execute(SETrans trans, List<SENetto> lNetto) {
 		try {
-			lNetto.stream().forEach(n -> saveBalance(n));
-
-			for (; i < lNetto.size(); i++) {
-				SENetto n = lNetto.get(i);
-
-				if (!updateBalance(n)) {
-					if (lNettoFail == null)
-						lNettoFail = new ArrayList<>();
-
-					lNettoFail.add(n);
-				}
-			}
-		} finally {
-			if (lNettoFail != null)
-				for (int r = 0; r < i; r++) {
-					SENetto n = lNetto.get(r);
-					revertBalance(n);
-				}
+			final TransStatus transStatus = setlEngineCore.execQueueAdd(trans, lNetto).get();
+			trans.state = transStatus.name();
+			return transStatus;
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
-
-		return lNettoFail;
-	}
-
-	private void saveBalance(SENetto n) {
-		final SEBalance balance = n.balance;
-		n.balInDtOld = balance.dt;
-		n.balInAmtOld = balance.inAmt;
-		n.balDbtAmtOld = balance.dbtAmt;
-		n.balCdtAmtOld = balance.cdtAmt;
-
-		final LocalDate operday = seParams.getOperday();
-		if (!balance.dt.equals(operday)) {
-			balance.dt = operday;
-			balance.inAmt = balance.cdtAmt.subtract(n.balDbtAmt);
-
-			if (balance.inAmt.signum() >= 0) {
-				balance.dbtAmt = BigDecimal.ZERO;
-				balance.cdtAmt = balance.inAmt;
-			} else {
-				balance.dbtAmt = balance.inAmt;
-				balance.cdtAmt = BigDecimal.ZERO;
-				;
-			}
-		}
-	}
-
-	// TODO get limits
-	private BigDecimal getLimits(SENetto n) {
-		return BigDecimal.ZERO;
-	}
-
-	// TODO get overdrafts
-	private BigDecimal getOverdrafts(SENetto n) {
-		return BigDecimal.ZERO;
-	}
-
-	// TODO check balances
-	private boolean updateBalance(SENetto n) {
-		final SEBalance balance = n.balance;
-		balance.dbtAmt = balance.dbtAmt.add(n.dbtAmt);
-		balance.cdtAmt = balance.cdtAmt.add(n.cdtAmt);
-
-		return balance.activity != 'P'
-				|| balance.cdtAmt.subtract(balance.dbtAmt).subtract(getLimits(n)).add(getOverdrafts(n)).signum() >= 0;
-	}
-
-	private void revertBalance(SENetto n) {
-		final SEBalance balance = n.balance;
-		balance.dt = n.balInDtOld;
-		balance.inAmt = n.balInAmtOld;
-		balance.dbtAmt = n.balDbtAmtOld;
-		balance.cdtAmt = n.balCdtAmtOld;
 	}
 }
