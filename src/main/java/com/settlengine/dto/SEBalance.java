@@ -60,4 +60,10 @@ public class SEBalance extends SEEntity {
 
 	@DbField(nm = "close_dt")
 	public LocalDate closeDt;
+
+	@Override
+	public String toString() {
+		return "Balance{" + id + '#' + cust + '#' + acct + '#' + balTp + '#' + instr
+				+ '[' + activity + "]=" + cdtAmt.subtract(dbtAmt).toPlainString() + '}';
+	}
 }

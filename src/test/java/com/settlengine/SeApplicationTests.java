@@ -34,7 +34,7 @@ class SeApplicationTests {
 	}
 
 	private SEBalance createPassiveAccount(final String cust, final String acct, final String balTp, final String instr, Integer inAmt) {
-		final SEBalance balance = balanceRepository.find(BalanceRepository.BalanceKey.of("BD", "CL001A02", "AVAI", "USD"));
+		final SEBalance balance = balanceRepository.find(BalanceRepository.BalanceKey.of(cust, acct, balTp, instr));
 		balance.activity = 'P';
 		balance.inAmt = balance.cdtAmt = BigDecimal.valueOf(inAmt);
 
@@ -130,7 +130,7 @@ class SeApplicationTests {
 
 	@Test
 	void settlePassiveAccount2() {
-		final SEBalance balC1A3 = createPassiveAccount("BD", "CL001A02", "AVAI", "USD", 10);
+		final SEBalance balC1A3 = createPassiveAccount("BD", "CL001A03", "AVAI", "USD", 10);
 
 		SETrans trans10 = new SETrans();
 		trans10.id = sequenceRepository.getTransId();
@@ -156,7 +156,7 @@ class SeApplicationTests {
 
 		final List<SENetto> lNetto10 = setlEngine.createNetto(trans10, Arrays.asList(entry10));
 
-		assertEquals(SetlEngine.TransStatus.QUED, setlEngine.execute(trans10, lNetto10));
+		assertEquals(SetlEngine.TransStatus.SETL, setlEngine.execute(trans10, lNetto10));
 
 
 		SETrans trans5 = new SETrans();
@@ -173,7 +173,7 @@ class SeApplicationTests {
 		entry5.trans = trans5;
 		entry5.docId = trans5.docId;
 		entry5.dbtrAcctCust = "BD";
-		entry5.dbtrAcct = "CL001A02";
+		entry5.dbtrAcct = balC1A3.acct;
 		entry5.dbtrBalTp = "AVAI";
 		entry5.cdtrAcctCust = "BD";
 		entry5.cdtrAcct = "CL002A01";
@@ -183,7 +183,6 @@ class SeApplicationTests {
 
 		final List<SENetto> lNetto5 = setlEngine.createNetto(trans5, Arrays.asList(entry5));
 
-// !!!!!!!!  should be QUED
-		assertEquals(SetlEngine.TransStatus.SETL, setlEngine.execute(trans5, lNetto5));
+		assertEquals(SetlEngine.TransStatus.QUED, setlEngine.execute(trans5, lNetto5));
 	}
 }

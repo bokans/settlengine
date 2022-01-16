@@ -18,6 +18,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class SetlEngineCore implements  Runnable {
 	public SetlEngineCore(BalanceRepository balanceRepository, SequenceRepository sequenceRepository, SEParams seParams) {
@@ -36,9 +37,22 @@ public class SetlEngineCore implements  Runnable {
 
 	private final TreeMap<Integer, TreeSet<SETrans>> queue = new TreeMap<>();
 
+	private final ReentrantLock lock = new ReentrantLock();
+
 	public CompletableFuture<SetlEngine.TransStatus> execQueueAdd(SETrans trans, List<SENetto> lNetto) {
-		final CompletableFuture<SetlEngine.TransStatus> result  = new CompletableFuture<>();
-		execQueue.add(new QueueData(trans, lNetto, result));
+//		final CompletableFuture<SetlEngine.TransStatus> result = new CompletableFuture<>();
+//		execQueue.add(new QueueData(trans, lNetto, result));
+
+		final CompletableFuture<SetlEngine.TransStatus> result = new CompletableFuture<>();
+		final QueueData qd = new QueueData(trans, lNetto, result);
+
+		lock.lock();
+		try {
+			qd.result.complete(executeNettoDebit(qd.trans, qd.lNetto));
+		} finally {
+			lock.unlock();
+		}
+
 		return result;
 	}
 

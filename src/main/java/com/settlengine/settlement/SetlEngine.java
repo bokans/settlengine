@@ -39,8 +39,8 @@ public class SetlEngine {
 		int countCreditNetto = 0;
 
 		for (final SEEntry e : lEntry) {
-			final BalanceRepository.BalanceKey key = BalanceRepository.BalanceKey.of(e.dbtrAcctCust, e.dbtrAcct, e.dbtrBalTp, e.instr);
-			final SENetto debitNetto = map.computeIfAbsent(key, k -> {
+			final BalanceRepository.BalanceKey dbtKey = BalanceRepository.BalanceKey.of(e.dbtrAcctCust, e.dbtrAcct, e.dbtrBalTp, e.instr);
+			final SENetto debitNetto = map.computeIfAbsent(dbtKey, k -> {
 				final SENetto nn = new SENetto();
 				nn.id = sequenceRepository.getNettoId();
 
@@ -50,10 +50,10 @@ public class SetlEngine {
 				nn.acct = e.dbtrAcct;
 				nn.acctBalTp = e.dbtrBalTp;
 				nn.instr = e.instr;
-				nn.dbtAmt = e.amount;
+				nn.dbtAmt = BigDecimal.ZERO;
 				nn.cdtAmt = BigDecimal.ZERO;
 
-				nn.balance = balanceRepository.find(key);
+				nn.balance = balanceRepository.find(dbtKey);
 				nn.balId = nn.balance.id;
 
 				return nn;
@@ -61,20 +61,21 @@ public class SetlEngine {
 			debitNetto.dbtAmt = debitNetto.dbtAmt.add(e.amount);
 			countDebitNetto++;
 
-			final SENetto creditNetto = map.computeIfAbsent(key, k -> {
+			final BalanceRepository.BalanceKey cdtKey = BalanceRepository.BalanceKey.of(e.cdtrAcctCust, e.cdtrAcct, e.cdtrBalTp, e.instr);
+			final SENetto creditNetto = map.computeIfAbsent(cdtKey, k -> {
 				final SENetto nn = new SENetto();
 				nn.id = sequenceRepository.getNettoId();
 
 				nn.transId = e.transId;
 				nn.docId = e.docId;
-				nn.acctCust = e.dbtrAcctCust;
-				nn.acct = e.dbtrAcct;
-				nn.acctBalTp = e.dbtrBalTp;
+				nn.acctCust = e.cdtrAcctCust;
+				nn.acct = e.cdtrAcct;
+				nn.acctBalTp = e.cdtrBalTp;
 				nn.instr = e.instr;
-				nn.dbtAmt = e.amount;
+				nn.dbtAmt = BigDecimal.ZERO;
 				nn.cdtAmt = BigDecimal.ZERO;
 
-				nn.balance = balanceRepository.find(key);
+				nn.balance = balanceRepository.find(cdtKey);
 				nn.balId = nn.balance.id;
 
 				return nn;
